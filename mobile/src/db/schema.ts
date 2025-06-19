@@ -39,9 +39,9 @@ export const albums = sqliteTable(
     artwork: text().generatedAlwaysAs(
       (): SQL => sql`coalesce(${albums.altArtwork}, ${albums.embeddedArtwork})`,
     ),
-    embeddedArtwork: text(),
-    altArtwork: text(),
-    isFavorite: integer({ mode: "boolean" }).notNull().default(false),
+    embeddedArtwork: text("embedded_artwork"),
+    altArtwork: text("alt_artwork"),
+    isFavorite: integer("is_favorite", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [unique().on(t.name, t.releaseYear)],
 );
@@ -54,10 +54,10 @@ export const albumsRelations = relations(albums, ({ many }) => ({
 export const albumsToArtists = sqliteTable(
   "albums_to_artists",
   {
-    albumId: text()
+    albumId: text("album_id")
       .notNull()
       .references(() => albums.id),
-    artistName: text()
+    artistName: text("artist_name")
       .notNull()
       .references(() => artists.name),
     position: integer().notNull().default(0),
@@ -83,10 +83,10 @@ export const tracks = sqliteTable("tracks", {
   id: text().primaryKey(),
   name: text().notNull(),
   // Legacy field for backward compatibility - will be deprecated
-  artistName: text().references(() => artists.name),
-  albumId: text().references(() => albums.id),
+  artistName: text("artist_name").references(() => artists.name),
+  albumId: text("album_id").references(() => albums.id),
   artwork: text(),
-  isFavorite: integer({ mode: "boolean" }).notNull().default(false),
+  isFavorite: integer("is_favorite", { mode: "boolean" }).notNull().default(false),
   duration: integer().notNull(), // Track duration in seconds
   // Album relations
   disc: integer(),
@@ -94,13 +94,13 @@ export const tracks = sqliteTable("tracks", {
   // Other metadata
   format: text(), // Currently the mimetype of the file
   bitrate: integer(),
-  sampleRate: integer(),
+  sampleRate: integer("sample_rate"),
   size: integer().notNull(),
   uri: text().notNull(),
-  modificationTime: integer().notNull(),
+  modificationTime: integer("modification_time").notNull(),
   // Data checking fields.
-  fetchedArt: integer({ mode: "boolean" }).notNull().default(false),
-  parentFolder: text().generatedAlwaysAs(
+  fetchedArt: integer("fetched_art", { mode: "boolean" }).notNull().default(false),
+  parentFolder: text("parent_folder").generatedAlwaysAs(
     // Ref: https://stackoverflow.com/a/38330814
     (): SQL => sql`rtrim(${tracks.uri}, replace(${tracks.uri}, '/', ''))`,
   ),
@@ -115,10 +115,10 @@ export const tracksRelations = relations(tracks, ({ one, many }) => ({
 export const tracksToArtists = sqliteTable(
   "tracks_to_artists",
   {
-    trackId: text()
+    trackId: text("track_id")
       .notNull()
       .references(() => tracks.id),
-    artistName: text()
+    artistName: text("artist_name")
       .notNull()
       .references(() => artists.name),
     position: integer().notNull().default(0),
@@ -143,15 +143,15 @@ export const tracksToArtistsRelations = relations(
 export const invalidTracks = sqliteTable("invalid_tracks", {
   id: text().primaryKey(),
   uri: text().notNull(),
-  errorName: text(),
-  errorMessage: text(),
-  modificationTime: integer().notNull(),
+  errorName: text("error_name"),
+  errorMessage: text("error_message"),
+  modificationTime: integer("modification_time").notNull(),
 });
 
 export const playlists = sqliteTable("playlists", {
   name: text().primaryKey(),
   artwork: text(),
-  isFavorite: integer({ mode: "boolean" }).notNull().default(false),
+  isFavorite: integer("is_favorite", { mode: "boolean" }).notNull().default(false),
 });
 
 export const playlistsRelations = relations(playlists, ({ many }) => ({
@@ -161,10 +161,10 @@ export const playlistsRelations = relations(playlists, ({ many }) => ({
 export const tracksToPlaylists = sqliteTable(
   "tracks_to_playlists",
   {
-    trackId: text()
+    trackId: text("track_id")
       .notNull()
       .references(() => tracks.id),
-    playlistName: text()
+    playlistName: text("playlist_name")
       .notNull()
       .references(() => playlists.name),
     position: integer().notNull().default(-1),
@@ -190,7 +190,7 @@ export const fileNodes = sqliteTable("file_node", {
   // Excludes the `file:///` at the beginning. Ends with a trailing `/`.
   path: text().primaryKey(),
   // `null` if `path = "Music"`. Ends with a trailing `/`.
-  parentPath: text().references((): AnySQLiteColumn => fileNodes.path),
+  parentPath: text("parent_path").references((): AnySQLiteColumn => fileNodes.path),
   name: text().notNull(), // Name of directory.
 });
 
