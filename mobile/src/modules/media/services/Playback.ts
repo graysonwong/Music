@@ -1,6 +1,6 @@
 import TrackPlayer from "@weights-ai/react-native-track-player";
 
-import { getTrack } from "~/api/track";
+import { getTrack, getTrackWithArtists } from "~/api/track";
 import { userPreferencesStore } from "~/services/UserPreferences";
 import { Queue, RNTPManager, musicStore } from "./Music";
 import { RecentList } from "./RecentList";
@@ -11,6 +11,7 @@ import {
   getTrackList,
 } from "../helpers/data";
 import type { PlayListSource } from "../types";
+import type { TrackWithAlbumAndArtists } from "~/db/schema";
 
 //#region MusicControls
 /**
@@ -140,7 +141,7 @@ export async function playFromMediaList({
   let newTrack = activeTrack;
   if (isDiffTrack) {
     try {
-      newTrack = await getTrack(newTrackId!);
+      newTrack = await getTrackWithArtists(newTrackId!) as unknown as TrackWithAlbumAndArtists;
     } catch {}
   }
 

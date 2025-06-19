@@ -15,13 +15,14 @@ const _getArtist: QueryOneWithTracksFn<Artist> = () => async (id, options) => {
   const artist = await db.query.artists.findFirst({
     where: eq(artists.name, id),
     columns: getColumns(options?.columns),
-    with: withTracks(
-      { ...options, orderBy: (fields) => iAsc(fields.name) },
-      { defaultWithAlbum: true, ...options },
-    ),
+    // TODO: Update to use multi-artist relationships
+    // with: withTracks(
+    //   { ...options, orderBy: (fields) => iAsc(fields.name) },
+    //   { defaultWithAlbum: true, ...options },
+    // ),
   });
   if (!artist) throw new Error(i18next.t("err.msg.noArtists"));
-  return artist;
+  return artist as any;
 };
 
 /** Get specified artist. Throws error if nothing is found. */
@@ -37,14 +38,15 @@ export async function getArtistAlbums(id: string) {
 
 const _getArtists: QueryManyWithTracksFn<Artist> = () => async (options) => {
   return db.query.artists.findMany({
-    where: and(...(options?.where ?? [])),
+    where: options?.where && options.where.length > 0 ? and(...(options.where.filter(Boolean) as any)) : undefined,
     columns: getColumns(options?.columns),
-    with: withTracks(
-      { ...options, orderBy: (fields) => iAsc(fields.name) },
-      { defaultWithAlbum: true, ...options },
-    ),
+    // TODO: Update to use multi-artist relationships
+    // with: withTracks(
+    //   { ...options, orderBy: (fields) => iAsc(fields.name) },
+    //   { defaultWithAlbum: true, ...options },
+    // ),
     orderBy: (fields) => iAsc(fields.name),
-  });
+  }) as any;
 };
 
 /** Get multiple artists. */

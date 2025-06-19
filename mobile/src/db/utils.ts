@@ -7,6 +7,8 @@ import type {
   PlaylistWithTracks,
   Track,
   TrackWithAlbum,
+  TrackWithAlbumAndArtists,
+  AlbumWithArtists,
 } from "./schema";
 import type {
   Artwork,
@@ -20,6 +22,7 @@ import i18next from "~/modules/i18n";
 
 import { formatSeconds, isYearDefined } from "~/utils/number";
 import { omitKeys } from "~/utils/object";
+import { formatArtistsForDisplay } from "~/utils/artists";
 import type { AtLeast, Prettify } from "~/utils/types";
 import { ReservedNames, ReservedPlaylists } from "~/modules/media/constants";
 import type { MediaCard } from "~/modules/media/components/MediaCard";
@@ -71,7 +74,7 @@ export function formatForMediaCard({ type, data, t }: MediaCardFormatter) {
   let description = t("plural.track", { count: data.tracks.length });
   if (type === "album") {
     href = `/album/${data.id}`;
-    description = data.artistName;
+    description = data.artistName || '';
   } else if (type === "playlist") {
     source = getPlaylistCover(data);
     if (data.name === ReservedPlaylists.tracks) href = "/track";
@@ -105,6 +108,46 @@ export function formatForTrack(
     description = formatSeconds(duration);
     if (artistName && album?.artistName !== artistName) {
       description += ` • ${artistName}`;
+    }
+  }
+
+  return { id, imageSource, title: name, description } satisfies TrackC.Content;
+}
+
+/** Format data to be used in `<Track />` with multi-artist support. */
+export function formatForTrackWithArtists(
+  type: MediaType,
+  track: AtLeast<Track, "id" | "name" | "duration" | "artwork"> & {
+    album: AlbumWithArtists | null;
+    tracksToArtists: Array<{ artist: { name: string }; position: number }>;
+  },
+) {
+  const { id, name, duration, album, tracksToArtists } = track;
+
+  // Extract artist names and sort by position
+  const artistNames = tracksToArtists
+    .sort((a, b) => a.position - b.position)
+    .map(ta => ta.artist.name);
+
+  const imageSource = type !== "album" ? getTrackCover(track) : null;
+  let description = formatArtistsForDisplay(artistNames);
+  
+  if (type === "artist") {
+    description = album?.name ?? "—";
+  } else if (type === "album") {
+    description = formatSeconds(duration);
+    // Show track artists if different from album artists
+    if (album && artistNames.length > 0) {
+      const albumArtistNames = album.albumsToArtists
+        ?.sort((a, b) => a.position - b.position)
+        .map(aa => aa.artist.name) || [];
+      
+      const isDifferentArtists = artistNames.length !== albumArtistNames.length ||
+        artistNames.some((name, index) => name !== albumArtistNames[index]);
+      
+      if (isDifferentArtists) {
+        description += ` • ${formatArtistsForDisplay(artistNames)}`;
+      }
     }
   }
 

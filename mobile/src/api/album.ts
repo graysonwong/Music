@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "~/db";
 import type { Album } from "~/db/schema";
-import { albums } from "~/db/schema";
+import { albums, albumsToArtists } from "~/db/schema";
 
 import i18next from "~/modules/i18n";
 
@@ -79,5 +79,66 @@ export async function upsertAlbum(entry: typeof albums.$inferInsert) {
       })
       .returning()
   )[0];
+}
+
+/** Create a new album with multiple artists. Returns the created album. */
+export async function upsertAlbumWithArtists(
+  albumData: Omit<typeof albums.$inferInsert, 'artistName'>,
+  artistNames: string[]
+) {
+  return db.transaction(async (tx) => {
+    // Create album without artistName (for new multi-artist approach)
+    const [album] = await tx
+      .insert(albums)
+      .values({
+        ...albumData,
+        artistName: artistNames[0] || null, // Keep first artist for backward compatibility
+      })
+      .onConflictDoUpdate({
+        target: [albums.name, albums.releaseYear],
+        set: albumData,
+      })
+      .returning();
+
+    // Remove existing artist associations
+    if (album?.id) {
+      await tx.delete(albumsToArtists).where(eq(albumsToArtists.albumId, album.id));
+
+      // Add new artist associations
+      if (artistNames.length > 0) {
+        await tx.insert(albumsToArtists).values(
+          artistNames.map((artistName, index) => ({
+            albumId: album.id,
+            artistName,
+            position: index,
+          }))
+        );
+      }
+    }
+
+    return album;
+  });
+}
+
+/** Add artists to an existing album */
+export async function addArtistsToAlbum(albumId: string, artistNames: string[]) {
+  return db.transaction(async (tx) => {
+    // Get current max position
+    const lastArtist = await tx.query.albumsToArtists.findFirst({
+      where: eq(albumsToArtists.albumId, albumId),
+      orderBy: (fields, { desc }) => desc(fields.position),
+    });
+
+    const startPosition = (lastArtist?.position ?? -1) + 1;
+
+    // Add new artists
+    await tx.insert(albumsToArtists).values(
+      artistNames.map((artistName, index) => ({
+        albumId,
+        artistName,
+        position: startPosition + index,
+      }))
+    );
+  });
 }
 //#endregion

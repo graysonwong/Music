@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { formatForTrack } from "~/db/utils";
+import { formatForTrack, formatForTrackWithArtists } from "~/db/utils";
 
 import { addToPlaylist, favoriteTrack, removeFromPlaylist } from "~/api/track";
 import { Resynchronize } from "~/modules/media/services/Resynchronize";
@@ -27,7 +27,7 @@ export function useTracksForTrackCard() {
   return useQuery({
     ...q.tracks.all,
     select: (data) =>
-      sortTracksFn(data).map((track) => formatForTrack("track", track)),
+      sortTracksFn(data).map((track) => formatForTrackWithArtists("track", track as any)),
   });
 }
 //#endregion

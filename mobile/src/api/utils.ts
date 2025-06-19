@@ -61,3 +61,80 @@ export function withAlbum(options: WithAlbumOptions) {
     ? { with: { album: { columns: getColumns(options.albumColumns) } } }
     : {}) as unknown as { with: { album: true } };
 }
+
+type WithArtistsOptions = {
+  withArtists?: boolean;
+  artistColumns?: string[];
+};
+
+/**
+ * Creates the relations through the `with` operator for track artists
+ */
+export function withTrackArtists(options: WithArtistsOptions = {}) {
+  return (options.withArtists === true
+    ? {
+        tracksToArtists: {
+          columns: { position: true },
+          with: {
+            artist: { columns: getColumns(options.artistColumns || ["name"]) }
+          },
+          orderBy: (fields: any, { asc }: any) => asc(fields.position),
+        }
+      }
+    : {}) as unknown as { tracksToArtists: { with: { artist: true } } };
+}
+
+/**
+ * Creates the relations through the `with` operator for album artists
+ */
+export function withAlbumArtists(options: WithArtistsOptions = {}) {
+  return (options.withArtists === true
+    ? {
+        albumsToArtists: {
+          columns: { position: true },
+          with: {
+            artist: { columns: getColumns(options.artistColumns || ["name"]) }
+          },
+          orderBy: (fields: any, { asc }: any) => asc(fields.position),
+        }
+      }
+    : {}) as unknown as { albumsToArtists: { with: { artist: true } } };
+}
+
+/**
+ * Enhanced version of withAlbum that includes album artists
+ */
+export function withAlbumAndArtists(albumOptions: WithAlbumOptions, artistOptions: WithArtistsOptions = {}) {
+  const albumWith = (albumOptions.withAlbum ?? albumOptions.defaultWithAlbum) === true;
+  
+  if (!albumWith) {
+    return {};
+  }
+
+  return {
+    album: {
+      columns: getColumns(albumOptions.albumColumns),
+      ...withAlbumArtists(artistOptions),
+    }
+  };
+}
+
+/**
+ * Enhanced version of withTracks that includes track and album artists
+ */
+export function withTracksAndArtists(
+  trackOptions: WithTracksOptions,
+  albumOptions: WithAlbumOptions,
+  artistOptions: WithArtistsOptions = {}
+) {
+  return (trackOptions.withTracks !== false
+    ? {
+        tracks: {
+          columns: getColumns(trackOptions?.trackColumns),
+          orderBy: trackOptions.orderBy,
+          ...withTrackArtists(artistOptions),
+          ...withAlbumAndArtists(albumOptions, artistOptions),
+        },
+      }
+    : {}) as unknown as { tracks: { with: { album: true; tracksToArtists: { with: { artist: true } } } } };
+}

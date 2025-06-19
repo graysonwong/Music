@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "~/db";
 import type { Album, Track } from "~/db/schema";
-import { invalidTracks, tracks, tracksToPlaylists } from "~/db/schema";
+import { invalidTracks, tracks, tracksToPlaylists, tracksToArtists } from "~/db/schema";
 import { getTrackCover } from "~/db/utils";
 
 import i18next from "~/modules/i18n";
@@ -10,7 +10,7 @@ import i18next from "~/modules/i18n";
 import { iAsc } from "~/lib/drizzle";
 import type { BooleanPriority } from "~/utils/types";
 import type { DrizzleFilter, QueriedTrack } from "./types";
-import { getColumns, withAlbum } from "./utils";
+import { getColumns, withAlbum, withTrackArtists, withAlbumAndArtists } from "./utils";
 
 //#region GET Methods
 /** Get specified track. Throws error if nothing is found. */
@@ -62,7 +62,7 @@ export async function getTracks<
   withAlbum?: WithAlbum_User;
 }) {
   const allTracks = await db.query.tracks.findMany({
-    where: and(...(options?.where ?? [])),
+    where: options?.where && options.where.length > 0 ? and(...(options.where.filter(Boolean) as any)) : undefined,
     columns: getColumns(options?.columns),
     ...withAlbum({ defaultWithAlbum: true, ...options }),
     orderBy: (fields) => iAsc(fields.name),
@@ -77,12 +77,74 @@ export async function getTracks<
     QueriedTrack<BooleanPriority<WithAlbum_User, true>, TCols, ACols>
   >;
 }
+
+/** Get specified track with artist information. */
+export async function getTrackWithArtists(id: string) {
+  const track = await db.query.tracks.findFirst({
+    where: eq(tracks.id, id),
+    with: {
+      ...withTrackArtists({ withArtists: true }),
+      ...withAlbumAndArtists(
+        { defaultWithAlbum: true, withAlbum: true },
+        { withArtists: true }
+      ),
+    },
+  });
+  if (!track) throw new Error(i18next.t("err.msg.noTracks"));
+  return track;
+}
+
+/** Get multiple tracks with artist information. */
+export async function getTracksWithArtists(options?: {
+  where?: DrizzleFilter[];
+  columns?: (keyof Track)[];
+  albumColumns?: (keyof Album)[];
+}) {
+  return db.query.tracks.findMany({
+    where: options?.where && options.where.length > 0 ? and(...(options.where.filter(Boolean) as any)) : undefined,
+    columns: getColumns(options?.columns),
+    with: {
+      ...withTrackArtists({ withArtists: true }),
+      ...withAlbumAndArtists(
+        { 
+          defaultWithAlbum: true, 
+          withAlbum: true,
+          albumColumns: options?.albumColumns 
+        },
+        { withArtists: true }
+      ),
+    },
+    orderBy: (fields) => [iAsc(fields.name), iAsc(fields.artistName)],
+  });
+}
 //#endregion
 
 //#region POST Methods
 /** Create a new track entry. */
 export async function createTrack(entry: typeof tracks.$inferInsert) {
   return db.insert(tracks).values(entry).onConflictDoNothing();
+}
+
+/** Create a new track with multiple artists. */
+export async function createTrackWithArtists(
+  trackData: typeof tracks.$inferInsert,
+  artistNames: string[]
+) {
+  return db.transaction(async (tx) => {
+    // Create track
+    await tx.insert(tracks).values(trackData).onConflictDoNothing();
+
+    // Add artist associations
+    if (artistNames.length > 0) {
+      await tx.insert(tracksToArtists).values(
+        artistNames.map((artistName, index) => ({
+          trackId: trackData.id,
+          artistName,
+          position: index,
+        }))
+      ).onConflictDoNothing();
+    }
+  });
 }
 //#endregion
 
@@ -98,6 +160,35 @@ export async function updateTrack(
   values: Partial<typeof tracks.$inferInsert>,
 ) {
   return db.update(tracks).set(values).where(eq(tracks.id, id));
+}
+
+/** Update track with multiple artists. */
+export async function updateTrackWithArtists(
+  id: string,
+  trackData: Partial<typeof tracks.$inferInsert>,
+  artistNames?: string[]
+) {
+  return db.transaction(async (tx) => {
+    // Update track data
+    await tx.update(tracks).set(trackData).where(eq(tracks.id, id));
+
+    // Update artist associations if provided
+    if (artistNames !== undefined) {
+      // Remove existing artist associations
+      await tx.delete(tracksToArtists).where(eq(tracksToArtists.trackId, id));
+
+      // Add new artist associations
+      if (artistNames.length > 0) {
+        await tx.insert(tracksToArtists).values(
+          artistNames.map((artistName, index) => ({
+            trackId: id,
+            artistName,
+            position: index,
+          }))
+        );
+      }
+    }
+  });
 }
 //#endregion
 
@@ -132,8 +223,9 @@ export async function deleteTrack(
   errorInfo?: { errorName: string; errorMessage: string },
 ) {
   return db.transaction(async (tx) => {
-    // Remember to delete the track's playlist relations.
+    // Remember to delete the track's playlist and artist relations.
     await tx.delete(tracksToPlaylists).where(eq(tracksToPlaylists.trackId, id));
+    await tx.delete(tracksToArtists).where(eq(tracksToArtists.trackId, id));
     const [deletedTrack] = await tx
       .delete(tracks)
       .where(eq(tracks.id, id))

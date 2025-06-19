@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 
-import type { TrackWithAlbum } from "~/db/schema";
+import type { TrackWithAlbum, TrackWithAlbumAndArtists } from "~/db/schema";
 
 import { Favorite } from "~/icons/Favorite";
 import { InstantMix } from "~/icons/InstantMix";
@@ -28,6 +28,7 @@ import { Slider } from "~/components/Form/Slider";
 import { useSheetRef } from "~/components/Sheet";
 import { Back } from "~/components/Transition/Back";
 import { StyledText } from "~/components/Typography/StyledText";
+import { ArtistLinks } from "~/components/ArtistLinks";
 import {
   NextButton,
   PlayToggleButton,
@@ -55,7 +56,7 @@ export default function NowPlayingScreen() {
 
 //#region Metadata
 /** Brief information and actions on the current playing track. */
-function Metadata({ track }: { track: TrackWithAlbum }) {
+function Metadata({ track }: { track: TrackWithAlbumAndArtists }) {
   const { t } = useTranslation();
   return (
     <View className="flex-row items-center gap-4">
@@ -63,9 +64,21 @@ function Metadata({ track }: { track: TrackWithAlbum }) {
         <Marquee>
           <StyledText className="text-xl/[1.125]">{track.name}</StyledText>
         </Marquee>
-        <MarqueeLink href={`/artist/${track.artistName}`} className="text-red">
-          {track.artistName}
-        </MarqueeLink>
+        <Marquee>
+          {track.tracksToArtists && track.tracksToArtists.length > 0 ? (
+            <ArtistLinks 
+              artists={track.tracksToArtists
+                .sort((a, b) => a.position - b.position)
+                .map(ta => ta.artist.name)
+              }
+              className="text-red"
+            />
+          ) : (
+            <MarqueeLink href={`/artist/${track.artistName}`} className="text-red">
+              {track.artistName}
+            </MarqueeLink>
+          )}
+        </Marquee>
         <MarqueeLink href={`/album/${track.album?.id}`} dim>
           {track.album?.name}
         </MarqueeLink>

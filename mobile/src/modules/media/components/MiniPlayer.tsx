@@ -13,6 +13,7 @@ import { cn } from "~/lib/style";
 import { Marquee } from "~/components/Containment/Marquee";
 import { IconButton } from "~/components/Form/Button";
 import { StyledText } from "~/components/Typography/StyledText";
+import { ArtistLinksMarquee } from "~/components/ArtistLinks";
 import { NextButton, PreviousButton } from "./MediaControls";
 import { MediaImage } from "./MediaImage";
 
@@ -50,7 +51,17 @@ export function MiniPlayer({ hidden = false, stacked = false }) {
             <StyledText>{track.name}</StyledText>
           </Marquee>
           <Marquee color={surface}>
-            <StyledText dim>{track.artistName ?? "—"}</StyledText>
+            {track.tracksToArtists && track.tracksToArtists.length > 0 ? (
+              <ArtistLinksMarquee 
+                artists={track.tracksToArtists
+                  .sort((a, b) => a.position - b.position)
+                  .map(ta => ta.artist.name)
+                }
+                dim
+              />
+            ) : (
+              <StyledText dim>{track.artistName ?? "—"}</StyledText>
+            )}
           </Marquee>
         </View>
 

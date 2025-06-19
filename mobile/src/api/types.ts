@@ -5,7 +5,7 @@ import type { Album, Track } from "~/db/schema";
 import type { BooleanPriority } from "~/utils/types";
 
 /** Operations passed to `where` clause. */
-export type DrizzleFilter = Array<SQL | undefined>;
+export type DrizzleFilter = Array<SQL<unknown> | undefined>;
 
 /**
  * Conditionally select properties of an object type based on optionally

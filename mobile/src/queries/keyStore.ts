@@ -13,7 +13,7 @@ import {
   getSaveErrors,
   getStorageSummary,
 } from "~/api/setting";
-import { getTrack, getTrackPlaylists, getTracks } from "~/api/track";
+import { getTrack, getTrackPlaylists, getTracks, getTracksWithArtists, getTrackWithArtists } from "~/api/track";
 
 import { ReservedPlaylists } from "~/modules/media/constants";
 
@@ -91,7 +91,7 @@ export const queries = createQueryKeyStore({
     all: {
       queryKey: null,
       queryFn: () =>
-        getTracks({
+        getTracksWithArtists({
           columns: [
             "id",
             "name",
@@ -105,7 +105,7 @@ export const queries = createQueryKeyStore({
     },
     detail: (trackId: string) => ({
       queryKey: [trackId],
-      queryFn: () => getTrack(trackId),
+      queryFn: () => getTrackWithArtists(trackId),
       contextQueries: {
         playlists: {
           // eslint-disable-next-line @tanstack/query/exhaustive-deps

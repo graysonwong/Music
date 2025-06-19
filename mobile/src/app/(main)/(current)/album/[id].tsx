@@ -66,7 +66,7 @@ export default function CurrentAlbumScreen() {
       />
       <CurrentListLayout
         title={data.name}
-        artist={data.artistName}
+        artist={data.artistName || undefined}
         metadata={data.metadata}
         imageSource={data.imageSource}
         mediaSource={trackSource}

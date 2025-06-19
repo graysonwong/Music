@@ -8,12 +8,12 @@ import type { Asset as MediaLibraryAsset } from "expo-media-library";
 import { getAssetsAsync } from "expo-media-library";
 
 import { db } from "~/db";
-import { albums, artists, invalidTracks, tracks } from "~/db/schema";
+import { albums, artists, invalidTracks, tracks, tracksToArtists, albumsToArtists } from "~/db/schema";
 
-import { getAlbums, upsertAlbum } from "~/api/album";
+import { getAlbums, upsertAlbum, upsertAlbumWithArtists } from "~/api/album";
 import { createArtist } from "~/api/artist";
 import { getSaveErrors } from "~/api/setting";
-import { createTrack, deleteTrack, getTracks, updateTrack } from "~/api/track";
+import { createTrack, createTrackWithArtists, deleteTrack, getTracks, updateTrack, updateTrackWithArtists } from "~/api/track";
 import { userPreferencesStore } from "~/services/UserPreferences";
 import { Queue, musicStore } from "~/modules/media/services/Music";
 import { RecentList } from "~/modules/media/services/RecentList";
@@ -24,6 +24,7 @@ import {
   getSafeUri,
   removeFileExtension,
 } from "~/utils/string";
+import { parseArtistString, getPrimaryArtist, sanitizeArtistNames } from "~/utils/artists";
 import { Stopwatch } from "~/utils/debug";
 import { BATCH_PRESETS, batch, wait } from "~/utils/promise";
 import { savePathComponents } from "./folder";
@@ -131,17 +132,17 @@ export async function findAndSaveAudio() {
       const isRetry = allInvalidTracksMap[id];
 
       try {
-        const trackEntry = await getTrackEntry(mediaAsset);
+        const { trackData, artists } = await getTrackEntry(mediaAsset);
 
         // Make sure we have the "folder" structure to this file.
         await savePathComponents(uri);
 
         if (modifiedTracks.has(id) && !isRetry) {
-          // Update existing track.
-          await updateTrack(id, trackEntry);
+          // Update existing track with multi-artist support.
+          await updateTrackWithArtists(id, trackData, artists);
         } else {
-          // Save new track.
-          await createTrack(trackEntry);
+          // Save new track with multi-artist support.
+          await createTrackWithArtists(trackData, artists);
           // Remove track from `InvalidTrack` if it was there previously.
           if (isRetry) {
             await db.delete(invalidTracks).where(eq(invalidTracks.id, id));
@@ -205,40 +206,51 @@ async function getTrackEntry({
   const { bitrate, sampleRate, ...t } = await getMetadata(uri, wantedMetadata);
   const file = new File(getSafeUri(uri));
 
+  // Parse multiple artists from metadata
+  const trackArtists = sanitizeArtistNames(parseArtistString(t.artist));
+  const albumArtists = sanitizeArtistNames(parseArtistString(t.albumArtist));
+
+  // Combine all unique artists for creation
+  const allArtists = Array.from(new Set([...trackArtists, ...albumArtists]));
+
   // Add new artists to the database.
   await Promise.allSettled(
-    [t.artist, t.albumArtist]
-      .filter((name) => name !== null && name.trim() !== "")
-      .map((name) => createArtist({ name: name!.trim() })),
+    allArtists
+      .filter((name) => name.trim() !== "")
+      .map((name) => createArtist({ name: name.trim() })),
   );
 
-  // Add new album to the database. The unique key on `Album` covers the rare
-  // case where an artist releases multiple albums with the same name.
+  // Add new album to the database with multiple artists support
   let albumId: string | null = null;
-  if (!!t.albumTitle?.trim() && !!t.albumArtist?.trim()) {
-    const newAlbum = await upsertAlbum({
-      name: t.albumTitle.trim(),
-      artistName: t.albumArtist.trim(),
-      releaseYear: t.year ?? -1,
-    });
+  if (!!t.albumTitle?.trim() && albumArtists.length > 0) {
+    const newAlbum = await upsertAlbumWithArtists(
+      {
+        name: t.albumTitle.trim(),
+        releaseYear: t.year ?? -1,
+      },
+      albumArtists
+    );
     if (newAlbum) albumId = newAlbum.id;
   }
 
   return {
-    id,
-    name: t.title?.trim() || removeFileExtension(filename),
-    artistName: t.artist?.trim() || null,
-    albumId,
-    track: t.trackNumber,
-    disc: t.discNumber,
-    format: t.sampleMimeType,
-    bitrate,
-    sampleRate,
-    duration,
-    uri,
-    modificationTime,
-    fetchedArt: false,
-    size: file.exists ? (file.size ?? 0) : 0,
+    trackData: {
+      id,
+      name: t.title?.trim() || removeFileExtension(filename),
+      artistName: getPrimaryArtist(trackArtists), // Keep for backward compatibility
+      albumId,
+      track: t.trackNumber,
+      disc: t.discNumber,
+      format: t.sampleMimeType,
+      bitrate,
+      sampleRate,
+      duration,
+      uri,
+      modificationTime,
+      fetchedArt: false,
+      size: file.exists ? (file.size ?? 0) : 0,
+    },
+    artists: trackArtists,
   };
 }
 //#endregion
@@ -282,18 +294,24 @@ export async function removeUnusedCategories() {
   const unusedAlbumIds = allAlbums
     .filter(({ tracks }) => tracks.length === 0)
     .map(({ id }) => id);
+  
+  // Clean up album-to-artist relationships for unused albums
+  if (unusedAlbumIds.length > 0) {
+    await db.delete(albumsToArtists).where(inArray(albumsToArtists.albumId, unusedAlbumIds));
+  }
   await db.delete(albums).where(inArray(albums.id, unusedAlbumIds));
 
   // Remove unused artists.
   const allArtists = await db.query.artists.findMany({
     columns: { name: true },
     with: {
-      albums: { columns: { id: true } },
-      tracks: { columns: { id: true } },
+      albumsToArtists: { columns: { albumId: true } },
+      tracksToArtists: { columns: { trackId: true } },
     },
   });
   const unusedArtistNames = allArtists
-    .filter(({ albums, tracks }) => albums.length === 0 && tracks.length === 0)
+    .filter(({ albumsToArtists, tracksToArtists }) => 
+      albumsToArtists.length === 0 && tracksToArtists.length === 0)
     .map(({ name }) => name);
   await db.delete(artists).where(inArray(artists.name, unusedArtistNames));
 

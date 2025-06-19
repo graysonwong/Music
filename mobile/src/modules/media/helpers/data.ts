@@ -5,8 +5,9 @@
 
 import type { AddTrack } from "@weights-ai/react-native-track-player";
 
-import type { TrackWithAlbum } from "~/db/schema";
+import type { TrackWithAlbum, TrackWithAlbumAndArtists } from "~/db/schema";
 import { getTrackCover } from "~/db/utils";
+import { formatArtistsForDisplay } from "~/utils/artists";
 
 import i18next from "~/modules/i18n";
 import { getAlbum } from "~/api/album";
@@ -30,12 +31,22 @@ export function arePlaybackSourceEqual(
 }
 
 /** Format track data to be used with the RNTP queue. */
-export function formatTrackforPlayer(track: TrackWithAlbum) {
+export function formatTrackforPlayer(track: TrackWithAlbum | TrackWithAlbumAndArtists) {
+  let artistName = track.artistName ?? "No Artist";
+  
+  // If track has multi-artist information, use that instead
+  if ('tracksToArtists' in track && track.tracksToArtists?.length > 0) {
+    const artistNames = track.tracksToArtists
+      .sort((a, b) => a.position - b.position)
+      .map(ta => ta.artist.name);
+    artistName = formatArtistsForDisplay(artistNames);
+  }
+
   return {
     url: getSafeUri(track.uri),
     artwork: getTrackCover(track) ?? undefined,
     title: track.name,
-    artist: track.artistName ?? "No Artist",
+    artist: artistName,
     duration: track.duration,
     id: track.id,
   } satisfies AddTrack;

@@ -18,8 +18,8 @@ export const artists = sqliteTable("artists", {
 });
 
 export const artistsRelations = relations(artists, ({ many }) => ({
-  albums: many(albums),
-  tracks: many(tracks),
+  albumsToArtists: many(albumsToArtists),
+  tracksToArtists: many(tracksToArtists),
 }));
 
 export const albums = sqliteTable(
@@ -29,10 +29,8 @@ export const albums = sqliteTable(
       .primaryKey()
       .$defaultFn(() => createId()),
     name: text().notNull(),
-    // The `artistName` is the album artist.
-    artistName: text("artist_name")
-      .notNull()
-      .references(() => artists.name),
+    // Legacy field for backward compatibility - will be deprecated
+    artistName: text("artist_name").references(() => artists.name),
     /*
       FIXME: This is technically `.notNull()`, but the migration will fail
       for users who have "duplicate" album where `releaseYear = null`.
@@ -45,20 +43,46 @@ export const albums = sqliteTable(
     altArtwork: text(),
     isFavorite: integer({ mode: "boolean" }).notNull().default(false),
   },
-  (t) => [unique().on(t.name, t.artistName, t.releaseYear)],
+  (t) => [unique().on(t.name, t.releaseYear)],
 );
 
-export const albumsRelations = relations(albums, ({ one, many }) => ({
-  artist: one(artists, {
-    fields: [albums.artistName],
-    references: [artists.name],
-  }),
+export const albumsRelations = relations(albums, ({ many }) => ({
+  albumsToArtists: many(albumsToArtists),
   tracks: many(tracks),
 }));
+
+export const albumsToArtists = sqliteTable(
+  "albums_to_artists",
+  {
+    albumId: text()
+      .notNull()
+      .references(() => albums.id),
+    artistName: text()
+      .notNull()
+      .references(() => artists.name),
+    position: integer().notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.albumId, t.artistName] })],
+);
+
+export const albumsToArtistsRelations = relations(
+  albumsToArtists,
+  ({ one }) => ({
+    album: one(albums, {
+      fields: [albumsToArtists.albumId],
+      references: [albums.id],
+    }),
+    artist: one(artists, {
+      fields: [albumsToArtists.artistName],
+      references: [artists.name],
+    }),
+  }),
+);
 
 export const tracks = sqliteTable("tracks", {
   id: text().primaryKey(),
   name: text().notNull(),
+  // Legacy field for backward compatibility - will be deprecated
   artistName: text().references(() => artists.name),
   albumId: text().references(() => albums.id),
   artwork: text(),
@@ -83,13 +107,38 @@ export const tracks = sqliteTable("tracks", {
 });
 
 export const tracksRelations = relations(tracks, ({ one, many }) => ({
-  artist: one(artists, {
-    fields: [tracks.artistName],
-    references: [artists.name],
-  }),
   album: one(albums, { fields: [tracks.albumId], references: [albums.id] }),
+  tracksToArtists: many(tracksToArtists),
   tracksToPlaylists: many(tracksToPlaylists),
 }));
+
+export const tracksToArtists = sqliteTable(
+  "tracks_to_artists",
+  {
+    trackId: text()
+      .notNull()
+      .references(() => tracks.id),
+    artistName: text()
+      .notNull()
+      .references(() => artists.name),
+    position: integer().notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.trackId, t.artistName] })],
+);
+
+export const tracksToArtistsRelations = relations(
+  tracksToArtists,
+  ({ one }) => ({
+    track: one(tracks, {
+      fields: [tracksToArtists.trackId],
+      references: [tracks.id],
+    }),
+    artist: one(artists, {
+      fields: [tracksToArtists.artistName],
+      references: [artists.name],
+    }),
+  }),
+);
 
 export const invalidTracks = sqliteTable("invalid_tracks", {
   id: text().primaryKey(),
@@ -157,9 +206,21 @@ export type ArtistWithTracks = Prettify<Artist & { tracks: TrackWithAlbum[] }>;
 
 export type Album = InferSelectModel<typeof albums>;
 export type AlbumWithTracks = Prettify<Album & { tracks: Track[] }>;
+export type AlbumWithArtists = Prettify<
+  Album & { albumsToArtists: Array<{ artist: Artist; position: number }> }
+>;
 
 export type Track = InferSelectModel<typeof tracks>;
 export type TrackWithAlbum = Prettify<Track & { album: Album | null }>;
+export type TrackWithArtists = Prettify<
+  Track & { tracksToArtists: Array<{ artist: Artist; position: number }> }
+>;
+export type TrackWithAlbumAndArtists = Prettify<
+  Track & { 
+    album: AlbumWithArtists | null;
+    tracksToArtists: Array<{ artist: Artist; position: number }>;
+  }
+>;
 
 export type InvalidTrack = InferSelectModel<typeof invalidTracks>;
 
@@ -172,6 +233,8 @@ export type PlaylistWithTracks = Prettify<
 >;
 
 export type TrackToPlaylist = InferSelectModel<typeof tracksToPlaylists>;
+export type TrackToArtist = InferSelectModel<typeof tracksToArtists>;
+export type AlbumToArtist = InferSelectModel<typeof albumsToArtists>;
 
 export type FileNode = InferSelectModel<typeof fileNodes>;
 export type FileNodeWithParent = Prettify<

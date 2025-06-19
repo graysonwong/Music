@@ -2,12 +2,13 @@ import { toast } from "@backpackapp-io/react-native-toast";
 import TrackPlayer, { State } from "@weights-ai/react-native-track-player";
 import { useStore } from "zustand";
 
-import type { TrackWithAlbum } from "~/db/schema";
+import type { TrackWithAlbum, TrackWithAlbumAndArtists } from "~/db/schema";
 
 import i18next from "~/modules/i18n";
 import {
   deleteTrack,
   getTrack,
+  getTrackWithArtists,
   removeInvalidTrackRelations,
 } from "~/api/track";
 
@@ -71,7 +72,7 @@ interface MusicStore {
    */
   activeId: string | undefined;
   /** Information about the current playing track. */
-  activeTrack: TrackWithAlbum | undefined;
+  activeTrack: TrackWithAlbumAndArtists | undefined;
   /**
    * The index of the track that is currently being played (or the last
    * track played if we're playing from the queue).
@@ -234,8 +235,8 @@ musicStore.subscribe(
     if (activeId === currTrack?.id) return;
 
     try {
-      const newTrack = activeId ? await getTrack(activeId) : undefined;
-      musicStore.setState({ activeTrack: newTrack });
+      const newTrack = activeId ? await getTrackWithArtists(activeId) : undefined;
+      musicStore.setState({ activeTrack: newTrack as TrackWithAlbumAndArtists | undefined });
     } catch {
       // Handle when track doesn't exist.
       console.log(
@@ -326,9 +327,9 @@ export class RNTPManager {
     const nextIndex = listIdx === currentList.length - 1 ? 0 : listIdx + 1;
 
     const nextTrackId = nextInQueue ? queueList[0] : currentList[nextIndex];
-    let nextTrack: TrackWithAlbum | undefined = undefined;
+    let nextTrack: TrackWithAlbumAndArtists | undefined = undefined;
     try {
-      if (nextTrackId) nextTrack = await getTrack(nextTrackId);
+      if (nextTrackId) nextTrack = await getTrackWithArtists(nextTrackId) as unknown as TrackWithAlbumAndArtists;
     } catch {}
 
     return {
@@ -347,9 +348,9 @@ export class RNTPManager {
     if (isInQueue) prevIndex = listIdx;
 
     const prevTrackId = currentList[prevIndex];
-    let prevTrack: TrackWithAlbum | undefined = undefined;
+    let prevTrack: TrackWithAlbumAndArtists | undefined = undefined;
     try {
-      if (prevTrackId) prevTrack = await getTrack(prevTrackId);
+      if (prevTrackId) prevTrack = await getTrackWithArtists(prevTrackId) as unknown as TrackWithAlbumAndArtists;
     } catch {}
 
     return {
