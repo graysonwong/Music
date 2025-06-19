@@ -8,18 +8,25 @@ import i18next from "~/modules/i18n";
 
 import { iAsc } from "~/lib/drizzle";
 import type { QueryManyWithTracksFn, QueryOneWithTracksFn } from "./types";
-import { getColumns, withTracks } from "./utils";
+import { getColumns } from "./utils";
 
 //#region GET Methods
 const _getArtist: QueryOneWithTracksFn<Artist> = () => async (id, options) => {
   const artist = await db.query.artists.findFirst({
     where: eq(artists.name, id),
     columns: getColumns(options?.columns),
-    // TODO: Update to use multi-artist relationships
-    // with: withTracks(
-    //   { ...options, orderBy: (fields) => iAsc(fields.name) },
-    //   { defaultWithAlbum: true, ...options },
-    // ),
+    with: {
+      tracksToArtists: {
+        with: {
+          track: {
+            with: {
+              album: true,
+            },
+          },
+        },
+        orderBy: (fields, { asc }) => asc(fields.track.name),
+      },
+    },
   });
   if (!artist) throw new Error(i18next.t("err.msg.noArtists"));
   return artist as any;
@@ -30,21 +37,37 @@ export const getArtist = _getArtist();
 
 /** Get the albums an artist has released in descending order. */
 export async function getArtistAlbums(id: string) {
-  return db.query.albums.findMany({
-    where: (fields, { eq }) => eq(fields.artistName, id),
-    orderBy: (fields, { desc }) => desc(fields.releaseYear),
-  });
+  return db.query.artists.findFirst({
+    where: eq(artists.name, id),
+    with: {
+      albumsToArtists: {
+        with: {
+          album: true,
+        },
+        orderBy: (fields, { desc }) => desc(fields.album.releaseYear),
+      },
+    },
+  }).then(artist => 
+    artist?.albumsToArtists.map(({ album }) => album) || []
+  );
 }
 
 const _getArtists: QueryManyWithTracksFn<Artist> = () => async (options) => {
   return db.query.artists.findMany({
     where: options?.where && options.where.length > 0 ? and(...(options.where.filter(Boolean) as any)) : undefined,
     columns: getColumns(options?.columns),
-    // TODO: Update to use multi-artist relationships
-    // with: withTracks(
-    //   { ...options, orderBy: (fields) => iAsc(fields.name) },
-    //   { defaultWithAlbum: true, ...options },
-    // ),
+    with: {
+      tracksToArtists: {
+        with: {
+          track: {
+            with: {
+              album: true,
+            },
+          },
+        },
+        orderBy: (fields, { asc }) => asc(fields.track.name),
+      },
+    },
     orderBy: (fields) => iAsc(fields.name),
   }) as any;
 };

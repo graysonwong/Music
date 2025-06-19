@@ -14,6 +14,7 @@ import { onboardingStore } from "../services/Onboarding";
 import { savePathComponents } from "./folder";
 import type { MigrationOption } from "../constants";
 import { MigrationHistory } from "../constants";
+import { migrateToMultiArtist } from "~/db/migrations/multi-artist-migration";
 
 /**
  * Run code to change some values prior to indexing for any changes
@@ -88,5 +89,8 @@ export const MigrationFunctionMap: Record<
         savePathComponents("file:///" + node.path + "placeholder"),
       ),
     );
+  },
+  "multi-artist-data": async () => {
+    await migrateToMultiArtist();
   },
 };

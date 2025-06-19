@@ -8,7 +8,7 @@ import i18next from "~/modules/i18n";
 
 import { iAsc } from "~/lib/drizzle";
 import type { QueryManyWithTracksFn, QueryOneWithTracksFn } from "./types";
-import { getColumns, withTracks } from "./utils";
+import { getColumns, withTracks, withAlbumArtists } from "./utils";
 
 //#region GET Methods
 const _getAlbum: QueryOneWithTracksFn<Album, false> =
@@ -49,6 +49,39 @@ const _getAlbums: QueryManyWithTracksFn<Album, false> =
 
 /** Get multiple albums. */
 export const getAlbums = _getAlbums();
+
+/** Get specified album with artist information. */
+export async function getAlbumWithArtists(id: string) {
+  const album = await db.query.albums.findFirst({
+    where: eq(albums.id, id),
+    with: {
+      ...withAlbumArtists({ withArtists: true }),
+      tracks: {
+        orderBy: (fields, { asc }) => [asc(fields.disc), asc(fields.track)],
+      },
+    },
+  });
+  if (!album) throw new Error(i18next.t("err.msg.noAlbums"));
+  return album;
+}
+
+/** Get multiple albums with artist information. */
+export async function getAlbumsWithArtists(options?: {
+  where?: any[];
+  columns?: (keyof Album)[];
+}) {
+  return db.query.albums.findMany({
+    where: options?.where && options.where.length > 0 ? and(...options.where) : undefined,
+    columns: getColumns(options?.columns),
+    with: {
+      ...withAlbumArtists({ withArtists: true }),
+      tracks: {
+        orderBy: (fields, { asc }) => [asc(fields.disc), asc(fields.track)],
+      },
+    },
+    orderBy: (fields) => [iAsc(fields.name), iAsc(fields.releaseYear)],
+  });
+}
 //#endregion
 
 //#region PATCH Methods

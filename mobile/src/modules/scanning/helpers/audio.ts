@@ -206,9 +206,27 @@ async function getTrackEntry({
   const { bitrate, sampleRate, ...t } = await getMetadata(uri, wantedMetadata);
   const file = new File(getSafeUri(uri));
 
-  // Parse multiple artists from metadata
-  const trackArtists = sanitizeArtistNames(parseArtistString(t.artist));
-  const albumArtists = sanitizeArtistNames(parseArtistString(t.albumArtist));
+  // Parse multiple artists from metadata with enhanced format support
+  let trackArtists = sanitizeArtistNames(parseArtistString(t.artist));
+  let albumArtists = sanitizeArtistNames(parseArtistString(t.albumArtist));
+
+  // Fallback to track artists if no album artists found
+  if (albumArtists.length === 0 && trackArtists.length > 0) {
+    albumArtists = [...trackArtists];
+  }
+
+  // Fallback to album artists if no track artists found
+  if (trackArtists.length === 0 && albumArtists.length > 0) {
+    trackArtists = [...albumArtists];
+  }
+
+  // If still no artists found, use a default
+  if (trackArtists.length === 0) {
+    trackArtists = ["Unknown Artist"];
+  }
+  if (albumArtists.length === 0) {
+    albumArtists = [...trackArtists];
+  }
 
   // Combine all unique artists for creation
   const allArtists = Array.from(new Set([...trackArtists, ...albumArtists]));
@@ -222,7 +240,7 @@ async function getTrackEntry({
 
   // Add new album to the database with multiple artists support
   let albumId: string | null = null;
-  if (!!t.albumTitle?.trim() && albumArtists.length > 0) {
+  if (!!t.albumTitle?.trim()) {
     const newAlbum = await upsertAlbumWithArtists(
       {
         name: t.albumTitle.trim(),

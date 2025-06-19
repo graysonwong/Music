@@ -1,4 +1,4 @@
-export type MigrationOption = "kv-store" | "fileNodes-adjustment";
+export type MigrationOption = "kv-store" | "fileNodes-adjustment" | "multi-artist-data";
 
 /**
  * History of data migrations due to "breaking" changes.
@@ -16,4 +16,5 @@ export const MigrationHistory: Record<
   { version: string; changes: MigrationOption[] }
 > = {
   0: { version: "v2.3.0", changes: ["kv-store", "fileNodes-adjustment"] },
+  1: { version: "v2.3.1", changes: ["multi-artist-data"] },
 };

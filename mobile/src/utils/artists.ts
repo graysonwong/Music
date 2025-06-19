@@ -4,11 +4,16 @@
 
 /**
  * Parse a string containing multiple artists into an array of artist names.
- * Handles common delimiters used in music metadata.
+ * Handles common delimiters used in music metadata across different formats.
  * 
  * Priority order for delimiters:
  * 1. "; " (semicolon with space) - most common for multi-artist separation
- * 2. ", " (comma with space) - secondary delimiter
+ * 2. ";" (semicolon without space) - alternative semicolon format
+ * 3. ", " (comma with space) - secondary delimiter
+ * 4. " / " (slash with spaces) - common in some formats
+ * 5. "/" (slash without spaces) - alternative slash format
+ * 6. " & " (ampersand with spaces) - common for collaborations
+ * 7. " feat. " or " ft. " - featuring artists
  * 
  * @param artistString - The raw artist string from metadata
  * @returns Array of trimmed artist names, or empty array if input is invalid
@@ -23,20 +28,30 @@ export function parseArtistString(artistString: string | null | undefined): stri
     return [];
   }
 
-  // First try semicolon delimiter (highest priority)
-  if (trimmed.includes('; ')) {
-    return trimmed
-      .split('; ')
-      .map(artist => artist.trim())
-      .filter(artist => artist.length > 0);
-  }
+  // Define delimiters in priority order
+  const delimiters = [
+    '; ',    // Highest priority - semicolon with space
+    ';',     // Semicolon without space
+    ', ',    // Comma with space
+    ' / ',   // Slash with spaces
+    '/',     // Slash without spaces
+    ' & ',   // Ampersand with spaces
+    ' feat. ',
+    ' ft. ',
+    ' featuring ',
+    ' Feat. ',
+    ' Ft. ',
+    ' Featuring ',
+  ];
 
-  // Then try comma delimiter
-  if (trimmed.includes(', ')) {
-    return trimmed
-      .split(', ')
-      .map(artist => artist.trim())
-      .filter(artist => artist.length > 0);
+  // Try each delimiter in order
+  for (const delimiter of delimiters) {
+    if (trimmed.includes(delimiter)) {
+      return trimmed
+        .split(delimiter)
+        .map(artist => artist.trim())
+        .filter(artist => artist.length > 0);
+    }
   }
 
   // If no delimiters found, return single artist
