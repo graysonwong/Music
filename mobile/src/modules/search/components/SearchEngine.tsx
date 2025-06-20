@@ -238,7 +238,19 @@ function formatResults(results: Partial<SearchResults>, tab: SearchTab) {
       ...data.map((item) => {
         let description: string | undefined;
         // @ts-expect-error - `artistName` should be present in these cases.
-        if (withArtistName.includes(key)) description = item.artistName ?? "—";
+        if (withArtistName.includes(key)) {
+          // Check for multi-artist information first
+          if (key === "album" && item.artists && item.artists.length > 0) {
+            description = item.artists.map(artist => artist.name).join(", ");
+          } else if (key === "track" && item.tracksToArtists && item.tracksToArtists.length > 0) {
+            description = item.tracksToArtists
+              .sort((a, b) => a.position - b.position)
+              .map(ta => ta.artist.name)
+              .join(", ");
+          } else {
+            description = item.artistName ?? "—";
+          }
+        }
         // @ts-expect-error - `path` should be present in these cases.
         else if (item.path) description = item.path;
 
