@@ -91,7 +91,12 @@ export async function getTrackWithArtists(id: string) {
     },
   });
   if (!track) throw new Error(i18next.t("err.msg.noTracks"));
-  return track;
+  
+  // Compute artwork like in getTrack
+  return {
+    ...track,
+    artwork: getTrackCover(track),
+  };
 }
 
 /** Get multiple tracks with artist information. */
@@ -100,7 +105,7 @@ export async function getTracksWithArtists(options?: {
   columns?: (keyof Track)[];
   albumColumns?: (keyof Album)[];
 }) {
-  return db.query.tracks.findMany({
+  const tracks = await db.query.tracks.findMany({
     where: options?.where && options.where.length > 0 ? and(...(options.where.filter(Boolean) as any)) : undefined,
     columns: getColumns(options?.columns),
     with: {
@@ -116,6 +121,12 @@ export async function getTracksWithArtists(options?: {
     },
     orderBy: (fields) => [iAsc(fields.name), iAsc(fields.artistName)],
   });
+  
+  // Compute artwork for each track
+  return tracks.map(track => ({
+    ...track,
+    artwork: getTrackCover(track),
+  }));
 }
 //#endregion
 

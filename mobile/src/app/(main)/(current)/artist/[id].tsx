@@ -17,7 +17,8 @@ import { Track } from "~/modules/media/components/Track";
 /** Screen for `/artist/[id]` route. */
 export default function CurrentArtistScreen() {
   const { bottomInset } = useBottomActionsContext();
-  const { id: artistName } = useLocalSearchParams<{ id: string }>();
+  const { id: encodedArtistName } = useLocalSearchParams<{ id: string }>();
+  const artistName = decodeURIComponent(encodedArtistName || "");
   const { isPending, error, data } = useArtistForScreen(artistName);
 
   if (isPending || error) return <PagePlaceholder isPending={isPending} />;

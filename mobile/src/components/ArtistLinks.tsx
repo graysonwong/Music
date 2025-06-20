@@ -61,16 +61,11 @@ export function ArtistLinks({
               {index === displayArtists.length - 2 && remainingCount === 0 ? " & " : ", "}
             </StyledText>
           )}
-          {index === displayArtists.length - 1 && remainingCount === 0 && displayArtists.length > 1 && (
-            <StyledText dim={dim} numberOfLines={numberOfLines} className={className}>
-              {" & "}
-            </StyledText>
-          )}
         </Fragment>
       ))}
       {remainingCount > 0 && (
         <StyledText dim={dim} numberOfLines={numberOfLines} className={className}>
-          {displayArtists.length > 1 ? ", " : ""} & {remainingCount} more
+          {displayArtists.length > 0 ? " & " : ""}{remainingCount} more
         </StyledText>
       )}
     </View>

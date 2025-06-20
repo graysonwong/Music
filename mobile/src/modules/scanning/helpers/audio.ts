@@ -207,8 +207,16 @@ async function getTrackEntry({
   const file = new File(getSafeUri(uri));
 
   // Parse multiple artists from metadata with enhanced format support
-  let trackArtists = sanitizeArtistNames(parseArtistString(t.artist));
-  let albumArtists = sanitizeArtistNames(parseArtistString(t.albumArtist));
+  // FLAC files might use different field names, so check multiple possible fields
+  const artistFields = [t.artist, t.albumArtist, (t as any).artists, (t as any).performer];
+  const albumArtistFields = [t.albumArtist, t.artist, (t as any).albumartist, (t as any).album_artist];
+  
+  // Get the first non-empty artist field
+  const rawArtist = artistFields.find(field => field && field.trim().length > 0) || t.artist;
+  const rawAlbumArtist = albumArtistFields.find(field => field && field.trim().length > 0) || t.albumArtist;
+  
+  let trackArtists = sanitizeArtistNames(parseArtistString(rawArtist));
+  let albumArtists = sanitizeArtistNames(parseArtistString(rawAlbumArtist));
 
   // Fallback to track artists if no album artists found
   if (albumArtists.length === 0 && trackArtists.length > 0) {

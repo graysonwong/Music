@@ -24,11 +24,18 @@ const _getArtist: QueryOneWithTracksFn<Artist> = () => async (id, options) => {
             },
           },
         },
-        orderBy: (fields, { asc }) => asc(fields.position),
+        orderBy: (fields, { asc }) => asc(fields.track.name),
       },
     },
   });
   if (!artist) throw new Error(i18next.t("err.msg.noArtists"));
+  
+  // Transform the data to match the expected format
+  if (artist) {
+    const tracks = artist.tracksToArtists.map(({ track }) => track);
+    return { ...artist, tracks } as any;
+  }
+  
   return artist as any;
 };
 
@@ -55,7 +62,7 @@ export async function getArtistAlbums(id: string) {
 }
 
 const _getArtists: QueryManyWithTracksFn<Artist> = () => async (options) => {
-  return db.query.artists.findMany({
+  const artists = await db.query.artists.findMany({
     where: options?.where && options.where.length > 0 ? and(...(options.where.filter(Boolean) as any)) : undefined,
     columns: getColumns(options?.columns),
     with: {
@@ -71,6 +78,12 @@ const _getArtists: QueryManyWithTracksFn<Artist> = () => async (options) => {
       },
     },
     orderBy: (fields) => iAsc(fields.name),
+  });
+  
+  // Transform the data to match the expected format
+  return artists.map(artist => {
+    const tracks = artist.tracksToArtists.map(({ track }) => track);
+    return { ...artist, tracks };
   }) as any;
 };
 

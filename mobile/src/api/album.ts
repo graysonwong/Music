@@ -16,15 +16,30 @@ const _getAlbum: QueryOneWithTracksFn<Album, false> =
     const album = await db.query.albums.findFirst({
       where: eq(albums.id, id),
       columns: getColumns(options?.columns),
-      with: withTracks(
-        {
-          ...options,
-          orderBy: (fields, { asc }) => [asc(fields.disc), asc(fields.track)],
+      with: {
+        ...withTracks(
+          {
+            ...options,
+            orderBy: (fields, { asc }) => [asc(fields.disc), asc(fields.track)],
+          },
+          { defaultWithAlbum: false, ...options },
+        ),
+        albumsToArtists: {
+          with: {
+            artist: true,
+          },
+          orderBy: (fields, { asc }) => asc(fields.position),
         },
-        { defaultWithAlbum: false, ...options },
-      ),
+      },
     });
     if (!album) throw new Error(i18next.t("err.msg.noAlbums"));
+    
+    // Transform the data to include artists array
+    if (album) {
+      const artists = album.albumsToArtists.map(({ artist }) => artist);
+      return { ...album, artists } as any;
+    }
+    
     return album;
   };
 
@@ -33,18 +48,32 @@ export const getAlbum = _getAlbum();
 
 const _getAlbums: QueryManyWithTracksFn<Album, false> =
   () => async (options) => {
-    return db.query.albums.findMany({
+    const albums = await db.query.albums.findMany({
       where: and(...(options?.where ?? [])),
       columns: getColumns(options?.columns),
-      with: withTracks(
-        {
-          ...options,
-          orderBy: (fields, { asc }) => [asc(fields.disc), asc(fields.track)],
+      with: {
+        ...withTracks(
+          {
+            ...options,
+            orderBy: (fields, { asc }) => [asc(fields.disc), asc(fields.track)],
+          },
+          { defaultWithAlbum: false, ...options },
+        ),
+        albumsToArtists: {
+          with: {
+            artist: true,
+          },
+          orderBy: (fields, { asc }) => asc(fields.position),
         },
-        { defaultWithAlbum: false, ...options },
-      ),
+      },
       orderBy: (fields) => [iAsc(fields.name), iAsc(fields.artistName)],
     });
+    
+    // Transform the data to include artists array
+    return albums.map(album => {
+      const artists = album.albumsToArtists.map(({ artist }) => artist);
+      return { ...album, artists };
+    }) as any;
   };
 
 /** Get multiple albums. */

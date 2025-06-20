@@ -7,7 +7,7 @@ import type { SlimFolder, SlimTrackWithAlbum } from "~/db/slimTypes";
 import { getAlbums } from "~/api/album";
 import { getArtists } from "~/api/artist";
 import { getPlaylists } from "~/api/playlist";
-import { getTracks } from "~/api/track";
+import { getTracksWithArtists } from "~/api/track";
 
 import { addTrailingSlash } from "~/utils/string";
 import type { Prettify } from "~/utils/types";
@@ -25,19 +25,33 @@ export function useSearch<TScope extends SearchCategories>(
     return Object.fromEntries(
       scope.map((mediaType) => {
         const filteredResults = data[mediaType].filter(
-          (i) =>
+          (i) => {
             // Partial match with the `name` field.
-            i.name.toLocaleLowerCase().includes(q) ||
+            if (i.name.toLocaleLowerCase().includes(q)) return true;
+            
             // Album's or track's artist name starts with the query.
-            // prettier-ignore
             // @ts-expect-error - We ensured the `artistName` field is present.
-            (!!i.artistName && i.artistName.toLocaleLowerCase().startsWith(q)) ||
+            if (!!i.artistName && i.artistName.toLocaleLowerCase().startsWith(q)) return true;
+            
             // Track's album starts with the query.
             // @ts-expect-error - We ensured the `album` field is present.
-            (!!i.album && i.album.name.toLocaleLowerCase().startsWith(q)) ||
+            if (!!i.album && i.album.name.toLocaleLowerCase().startsWith(q)) return true;
+            
             // Folder's path includes the query.
             // @ts-expect-error - We ensured the `path` field is present.
-            (!!i.path && i.path.toLocaleLowerCase().includes(q)),
+            if (!!i.path && i.path.toLocaleLowerCase().includes(q)) return true;
+            
+            // For tracks with multi-artist information, search through all artists
+            // @ts-expect-error - We know tracks have tracksToArtists
+            if (i.tracksToArtists && Array.isArray(i.tracksToArtists)) {
+              // @ts-expect-error - We know the structure
+              return i.tracksToArtists.some(ta => 
+                ta.artist && ta.artist.name && ta.artist.name.toLocaleLowerCase().includes(q)
+              );
+            }
+            
+            return false;
+          }
         );
 
         // Have results that start with the query first.
@@ -59,7 +73,7 @@ async function getAllMedia() {
   // Maybe manually building the query would be faster, but would be a bit
   // too complicated to read.
   const [allTracks, allFolders] = await Promise.all([
-    getTracks({
+    getTracksWithArtists({
       columns: ["id", "name", "artistName", "artwork", "parentFolder"],
       albumColumns: ["name", "artwork"],
     }),
