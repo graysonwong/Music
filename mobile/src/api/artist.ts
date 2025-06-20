@@ -24,7 +24,7 @@ const _getArtist: QueryOneWithTracksFn<Artist> = () => async (id, options) => {
             },
           },
         },
-        orderBy: (fields, { asc }) => asc(fields.track.name),
+        orderBy: (fields, { asc }) => asc(fields.position),
       },
     },
   });
@@ -44,12 +44,14 @@ export async function getArtistAlbums(id: string) {
         with: {
           album: true,
         },
-        orderBy: (fields, { desc }) => desc(fields.album.releaseYear),
+        orderBy: (fields, { asc }) => asc(fields.position),
       },
     },
-  }).then(artist => 
-    artist?.albumsToArtists.map(({ album }) => album) || []
-  );
+  }).then(artist => {
+    const albums = artist?.albumsToArtists.map(({ album }) => album) || [];
+    // Sort albums by release year in descending order
+    return albums.sort((a, b) => (b.releaseYear || -1) - (a.releaseYear || -1));
+  });
 }
 
 const _getArtists: QueryManyWithTracksFn<Artist> = () => async (options) => {
